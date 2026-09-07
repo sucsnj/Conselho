@@ -1,0 +1,102 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    background-color: #0B0A0D;
+    background-image: 
+      radial-gradient(circle at 50% 0%, rgba(107, 18, 50, 0.35) 0%, rgba(11, 10, 13, 0.98) 80%),
+      linear-gradient(to right, rgba(20, 15, 25, 0.5) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(20, 15, 25, 0.5) 1px, transparent 1px);
+    background-size: 100% 100%, 40px 40px, 40px 40px;
+    background-attachment: fixed;
+    min-height: 100vh;
+  }
+}
+
+/* Barra de rolagem personalizada estilo medieval */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #121117;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #4C0D23;
+  border-radius: 4px;
+  border: 1px solid #CA8A04;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #6B1232;
+}
+
+/* Molduras e Ornamentos Medievais */
+.medieval-border {
+  position: relative;
+  border: 1px solid rgba(234, 179, 8, 0.35);
+  background: linear-gradient(180deg, rgba(26, 24, 34, 0.9) 0%, rgba(18, 17, 23, 0.95) 100%);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6), inset 0 0 15px rgba(234, 179, 8, 0.05);
+}
+
+.medieval-border::before,
+.medieval-border::after {
+  content: '✦';
+  position: absolute;
+  color: #EAB308;
+  font-size: 10px;
+  line-height: 1;
+  text-shadow: 0 0 8px #FACC15;
+}
+
+.medieval-border::before {
+  top: 4px;
+  left: 6px;
+}
+
+.medieval-border::after {
+  top: 4px;
+  right: 6px;
+}
+
+.medieval-title-glow {
+  text-shadow: 0 0 15px rgba(250, 204, 21, 0.45), 0 2px 4px rgba(0, 0, 0, 0.9);
+}
+
+/* Selo de Cera Real animado */
+@keyframes waxSealPop {
+  0% {
+    transform: scale(0.6) rotate(-10deg);
+    opacity: 0;
+  }
+  70% {
+    transform: scale(1.1) rotate(3deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+.wax-seal-animate {
+  animation: waxSealPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+/* Animação suave de flutuação para o Brasão */
+@keyframes royalFloat {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+.royal-float {
+  animation: royalFloat 4s ease-in-out infinite;
+}

@@ -1,0 +1,36 @@
+# ==========================================
+# .gitignore - Backend (Node.js / Express / SQLite)
+# ==========================================
+
+# Dependências
+node_modules/
+
+# Variáveis de Ambiente e Segredos
+.env
+.env.*
+!.env.example
+*.local
+
+# Banco de Dados Local (SQLite)
+# Evita expor dados reais de corte, votos, tokens e senhas
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+
+# Logs de Execução e Erro
+logs/
+*.log
+npm-debug.log*
+
+# Editores e Sistema Operacional
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
