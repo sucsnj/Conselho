@@ -62,7 +62,8 @@ async function runTests() {
     const voteRes = await request('POST', '/api/votes', {
       voter_id: pB.id,
       question_id: 1,
-      voted_for_name: pA.name
+      voted_for_name: pA.name,
+      session_token: pB.session_token
     });
     console.log('3. Voto de B em A:', voteRes.status === 200 ? '✅ OK' : '❌ Falhou');
 

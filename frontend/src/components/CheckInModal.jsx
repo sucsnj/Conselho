@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Scroll, Swords, Crown, Sparkles, Dices, Shield, X, AlertCircle } from 'lucide-react';
+import { Scroll, Swords, Crown, Sparkles, Dices, Shield, X, AlertCircle, Hourglass } from 'lucide-react';
 import { useCourt } from '../context/CourtContext';
 import { courtApi } from '../services/api';
 
@@ -26,6 +26,7 @@ export default function CheckInModal({ isOpen, onClose, canClose = true }) {
   const [customTitle, setCustomTitle] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [royalMessage, setRoyalMessage] = useState(false);
   const [availableTitles, setAvailableTitles] = useState(DEFAULT_TITLES);
 
   // Buscar títulos extras do backend se disponíveis
@@ -48,6 +49,7 @@ export default function CheckInModal({ isOpen, onClose, canClose = true }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setRoyalMessage(false);
 
     if (!name.trim()) {
       setError('Por favor, informe seu nome ou apelido para alistar-se!');
@@ -61,7 +63,11 @@ export default function CheckInModal({ isOpen, onClose, canClose = true }) {
       await checkIn(name.trim(), finalTitle);
       if (onClose) onClose();
     } catch (err) {
-      setError(err.message || 'Falha ao registrar seu nome no Tomo Real.');
+      if (err.status === 409) {
+        setRoyalMessage(true);
+      } else {
+        setError(err.message || 'Falha ao registrar seu nome no Tomo Real.');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -186,6 +192,78 @@ export default function CheckInModal({ isOpen, onClose, canClose = true }) {
           </button>
         </form>
       </div>
+
+      {isSubmitting && (
+        <div className="fixed inset-0 z-[55] flex items-center justify-center p-4 bg-obsidian-950/75 backdrop-blur-sm">
+          <div
+            role="status"
+            aria-live="polite"
+            className="w-full max-w-md p-6 sm:p-8 rounded-2xl medieval-border bg-gradient-to-b from-royal-950 via-obsidian-900 to-obsidian-950 text-center text-parchment-100 shadow-2xl border-gold-500/60"
+          >
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-royal-900 border-2 border-gold-500 shadow-gold-glow mb-4">
+              <Hourglass className="w-8 h-8 text-gold-400 animate-pulse" />
+            </div>
+            <p className="text-xs uppercase tracking-[0.2em] text-gold-400 font-heading font-bold mb-2">
+              Conferência Real em andamento
+            </p>
+            <h3 className="font-medieval text-2xl text-gold-300 font-bold medieval-title-glow">
+              A Corte está verificando teu juramento
+            </h3>
+            <p className="mt-4 text-sm leading-6 text-parchment-200 font-heading">
+              Aguarde enquanto os registros são consultados nos anais reais.
+              Não feche esta mensagem nem envie o juramento novamente durante a análise.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {royalMessage && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-obsidian-950/75 backdrop-blur-sm">
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="royal-warning-title"
+            className="relative w-full max-w-xl p-6 sm:p-8 rounded-2xl medieval-border bg-gradient-to-b from-royal-950 via-obsidian-900 to-obsidian-950 text-parchment-100 shadow-2xl border-gold-500/60"
+          >
+            <div className="flex items-start gap-4">
+              <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-red-950/70 border-2 border-gold-500 shadow-gold-glow shrink-0">
+                <Crown className="w-7 h-7 text-gold-400" />
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-[0.2em] text-gold-400 font-heading font-bold mb-1">
+                  Decreto do Conselho Real
+                </p>
+                <h3 id="royal-warning-title" className="font-medieval text-2xl text-gold-300 font-bold medieval-title-glow">
+                  Nome já protegido pela Corte
+                </h3>
+              </div>
+            </div>
+
+            <div className="mt-6 space-y-3 text-sm leading-6 text-parchment-200 font-heading">
+              <p>
+                Este nome já foi juramentado em outro navegador e está vinculado à pessoa que realizou o primeiro alistamento.
+                Para preservar a identidade e os votos de cada combatente, a Corte não pode conceder uma segunda entrada com o mesmo nome.
+              </p>
+              <p className="text-gold-200">
+                Se este é o seu nome, retorne ao navegador original com os dados do alistamento preservados. Limpar o cache, trocar de navegador
+                ou usar outro dispositivo impede a recuperação automática desse vínculo.
+              </p>
+              <p>
+                Caso esteja entrando pela primeira vez, escolha outro nome ou apelido para receber um novo brasão e participar da votação.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setRoyalMessage(false)}
+              className="mt-7 w-full py-3 px-5 rounded-xl bg-gradient-to-r from-gold-600 via-gold-500 to-gold-600 text-obsidian-950 font-heading font-extrabold text-sm uppercase tracking-wider shadow-gold-glow hover:brightness-110 active:scale-[0.99] transition-all flex items-center justify-center gap-2"
+            >
+              <Shield className="w-4 h-4" />
+              <span>Entendi o decreto</span>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

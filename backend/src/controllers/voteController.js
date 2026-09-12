@@ -1,18 +1,29 @@
 const { db } = require('../config/database');
+const crypto = require('crypto');
+
+function hashSessionToken(token) {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+function getAuthenticatedVoter(voterId, sessionToken) {
+  if (!sessionToken) return null;
+  return db.prepare('SELECT * FROM participants WHERE id = ? AND session_token_hash = ?')
+    .get(voterId, hashSessionToken(sessionToken));
+}
 
 const voteController = {
   submitVote: (req, res) => {
     try {
-      const { voter_id, question_id, voted_for_name } = req.body;
+      const { voter_id, question_id, voted_for_name, session_token: sessionToken } = req.body;
 
-      if (!voter_id || !question_id || !voted_for_name) {
+      if (!voter_id || !question_id || !voted_for_name || !sessionToken) {
         return res.status(400).json({ error: 'Combatente, questão e voto são obrigatórios!' });
       }
 
-      // Validar existência do participante votante
-      const voter = db.prepare('SELECT * FROM participants WHERE id = ?').get(voter_id);
+      // Validar que o voto vem do navegador vinculado ao participante
+      const voter = getAuthenticatedVoter(voter_id, sessionToken);
       if (!voter) {
-        return res.status(404).json({ error: 'Combatente votante não identificado nos registros.' });
+        return res.status(403).json({ error: 'Este navegador não está autorizado a votar por esse combatente.' });
       }
 
       // Validar questão no banco dinâmico
@@ -55,6 +66,11 @@ const voteController = {
   getMyVotes: (req, res) => {
     try {
       const { voterId } = req.params;
+      const sessionToken = req.get('x-participant-token');
+
+      if (!getAuthenticatedVoter(voterId, sessionToken)) {
+        return res.status(403).json({ error: 'Este navegador não está autorizado a consultar esses votos.' });
+      }
 
       const votes = db.prepare(`
         SELECT question_id, voted_for_name, created_at

@@ -22,6 +22,7 @@ function initializeDatabase() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL UNIQUE COLLATE NOCASE,
       title TEXT NOT NULL DEFAULT 'Guerreiro(a) da Corte',
+      session_token_hash TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
     );
 
@@ -68,6 +69,13 @@ function initializeDatabase() {
       value TEXT NOT NULL
     );
   `);
+
+  // Migração para bancos criados antes da identificação por navegador.
+  const participantColumns = db.prepare('PRAGMA table_info(participants)').all();
+  if (!participantColumns.some(column => column.name === 'session_token_hash')) {
+    db.exec('ALTER TABLE participants ADD COLUMN session_token_hash TEXT');
+  }
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_participants_session_token ON participants(session_token_hash) WHERE session_token_hash IS NOT NULL');
 
   // Configuração padrão de sessão
   const sessionActive = db.prepare("SELECT value FROM session_config WHERE key = 'session_active'").get();

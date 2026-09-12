@@ -62,14 +62,14 @@ cp .env.example .env
 
 ## 📜 Endpoints da API
 
-- `POST /api/checkin`: Realiza o alistamento do combatente (`{ name, title }`).
+- `POST /api/checkin`: Realiza o alistamento do combatente (`{ name, title, session_token? }`). O primeiro check-in vincula o nome ao navegador; para retornar com o mesmo nome, envie o `session_token` salvo pelo cliente. Outro navegador recebe `409`.
 - `GET /api/participants`: Lista todos os participantes que já fizeram check-in.
 - `GET /api/questions`: Lista todas as 48 perguntas separadas por categoria.
 - `GET /api/categories`: Lista as 5 categorias e quantidade de perguntas.
 - `GET /api/professors`: Lista mestres pré-cadastrados ou criados.
 - `POST /api/professors`: Cadastra novo mestre.
-- `POST /api/votes`: Registra ou atualiza um voto (`{ voter_id, question_id, voted_for_name }`).
-- `GET /api/votes/my/:voterId`: Retorna os votos daquele participante.
+- `POST /api/votes`: Registra ou atualiza um voto (`{ voter_id, question_id, voted_for_name, session_token }`).
+- `GET /api/votes/my/:voterId`: Retorna os votos daquele participante usando o header `x-participant-token`.
 - `GET /api/admin/results`: Apuração consolidada de votos com pódio e porcentagens (requer header `x-admin-pin`).
 - `POST /api/admin/reset-votes`: Limpa todos os votos (requer header `x-admin-pin`).
 - `POST /api/admin/reset-all`: Reinicia todos os dados (requer header `x-admin-pin`).

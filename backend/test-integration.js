@@ -80,18 +80,18 @@ async function runTests() {
 
   // Decreto 1: "Quem é mais provável de ser preso por uma coisa idiota?"
   // Votam em "Lucas Dev"
-  await postJson('/api/votes', { voter_id: v1.id, question_id: 1, voted_for_name: 'Lucas Dev' });
-  await postJson('/api/votes', { voter_id: v2.id, question_id: 1, voted_for_name: 'Lucas Dev' });
-  await postJson('/api/votes', { voter_id: v3.id, question_id: 1, voted_for_name: 'Pedro Santos' });
+  await postJson('/api/votes', { voter_id: v1.id, question_id: 1, voted_for_name: 'Lucas Dev', session_token: v1.session_token });
+  await postJson('/api/votes', { voter_id: v2.id, question_id: 1, voted_for_name: 'Lucas Dev', session_token: v2.session_token });
+  await postJson('/api/votes', { voter_id: v3.id, question_id: 1, voted_for_name: 'Pedro Santos', session_token: v3.session_token });
 
   // Decreto 11: "Na minha máquina funciona" -> Votam em "Pedro Santos"
-  await postJson('/api/votes', { voter_id: v1.id, question_id: 11, voted_for_name: 'Pedro Santos' });
-  await postJson('/api/votes', { voter_id: v2.id, question_id: 11, voted_for_name: 'Pedro Santos' });
+  await postJson('/api/votes', { voter_id: v1.id, question_id: 11, voted_for_name: 'Pedro Santos', session_token: v1.session_token });
+  await postJson('/api/votes', { voter_id: v2.id, question_id: 11, voted_for_name: 'Pedro Santos', session_token: v2.session_token });
 
   console.log('4. Gravação de votos com selo real: ✅ Aprovado');
 
   // 5. Verificar votos individuais de um combatente
-  const myVotes = await getJson(`/api/votes/my/${v1.id}`);
+  const myVotes = await getJson(`/api/votes/my/${v1.id}`, { 'x-participant-token': v1.session_token });
   const hasVotes = myVotes.data.votes && myVotes.data.votes[1] === 'Lucas Dev' && myVotes.data.votes[11] === 'Pedro Santos';
   console.log('5. Recuperação de votos do combatente:', hasVotes ? '✅ Aprovado' : '❌ Falhou');
 

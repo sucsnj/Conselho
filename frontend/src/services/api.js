@@ -17,7 +17,9 @@ async function request(endpoint, options = {}) {
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      throw new Error(data.error || `Erro do Reino (${response.status})`);
+      const error = new Error(data.error || `Erro do Reino (${response.status})`);
+      error.status = response.status;
+      throw error;
     }
 
     return data;
@@ -29,9 +31,9 @@ async function request(endpoint, options = {}) {
 
 export const courtApi = {
   // Alistamento e participantes
-  checkIn: (name, title) => request('/api/checkin', {
+  checkIn: (name, title, sessionToken) => request('/api/checkin', {
     method: 'POST',
-    body: JSON.stringify({ name, title })
+    body: JSON.stringify({ name, title, session_token: sessionToken })
   }),
 
   getParticipants: () => request('/api/participants'),
@@ -52,16 +54,19 @@ export const courtApi = {
   }),
 
   // Votação
-  submitVote: (voterId, questionId, votedForName) => request('/api/votes', {
+  submitVote: (voterId, questionId, votedForName, sessionToken) => request('/api/votes', {
     method: 'POST',
     body: JSON.stringify({
       voter_id: voterId,
       question_id: questionId,
-      voted_for_name: votedForName
+      voted_for_name: votedForName,
+      session_token: sessionToken
     })
   }),
 
-  getMyVotes: (voterId) => request(`/api/votes/my/${voterId}`),
+  getMyVotes: (voterId, sessionToken) => request(`/api/votes/my/${voterId}`, {
+    headers: { 'x-participant-token': sessionToken }
+  }),
 
   getStats: () => request('/api/votes/stats'),
 

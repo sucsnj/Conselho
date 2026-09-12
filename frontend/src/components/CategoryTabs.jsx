@@ -34,7 +34,7 @@ export default function CategoryTabs() {
             >
               <span className="text-xl">{cat.emoji}</span>
               <div>
-                <div className="font-heading text-xs font-bold tracking-wide truncate max-w-[150px] sm:max-w-[180px]">
+                <div className="font-heading text-xs font-bold tracking-wide truncate max-w-[250px] sm:max-w-[280px]">
                   {cat.name}
                 </div>
                 <div className="flex items-center gap-1.5 text-[10px] text-parchment-400">

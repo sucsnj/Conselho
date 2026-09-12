@@ -85,12 +85,12 @@ export function CourtProvider({ children }) {
       return;
     }
     try {
-      const data = await courtApi.getMyVotes(voterId);
+      const data = await courtApi.getMyVotes(voterId, currentParticipant?.session_token);
       setMyVotes(data.votes || {});
     } catch (err) {
       console.error('Erro ao buscar votos:', err);
     }
-  }, []);
+  }, [currentParticipant?.session_token]);
 
   // Inicialização geral
   useEffect(() => {
@@ -120,22 +120,46 @@ export function CourtProvider({ children }) {
   // Ação de Check-in
   const checkIn = async (name, title) => {
     try {
-      const data = await courtApi.checkIn(name, title);
+      let sessionToken = currentParticipant?.session_token;
+      if (!sessionToken) {
+        try {
+          const savedIdentity = JSON.parse(localStorage.getItem('corte_identidade') || 'null');
+          if (savedIdentity?.name?.toLowerCase() === name.trim().toLowerCase()) {
+            sessionToken = savedIdentity.session_token;
+          }
+        } catch {
+          sessionToken = null;
+        }
+      }
+
+      const data = await courtApi.checkIn(name, title, sessionToken);
       const participant = data.participant;
       setCurrentParticipant(participant);
       localStorage.setItem('corte_combatente', JSON.stringify(participant));
+      localStorage.setItem('corte_identidade', JSON.stringify({
+        name: participant.name,
+        session_token: participant.session_token
+      }));
       await fetchParticipants();
       await fetchMyVotes(participant.id);
       showToast(`Bem-vindo à Corte, ${participant.name}!`, 'success');
       return participant;
     } catch (err) {
-      showToast(err.message || 'Erro no alistamento real.', 'error');
+      if (err.status !== 409) {
+        showToast(err.message || 'Erro no alistamento real.', 'error');
+      }
       throw err;
     }
   };
 
   // Trocar de combatente (logout local)
   const leaveCourt = () => {
+    if (currentParticipant?.session_token) {
+      localStorage.setItem('corte_identidade', JSON.stringify({
+        name: currentParticipant.name,
+        session_token: currentParticipant.session_token
+      }));
+    }
     setCurrentParticipant(null);
     setMyVotes({});
     localStorage.removeItem('corte_combatente');
@@ -156,7 +180,7 @@ export function CourtProvider({ children }) {
     setVotingStatus(prev => ({ ...prev, [questionId]: 'saving' }));
 
     try {
-      await courtApi.submitVote(currentParticipant.id, questionId, votedForName);
+      await courtApi.submitVote(currentParticipant.id, questionId, votedForName, currentParticipant.session_token);
       setVotingStatus(prev => ({ ...prev, [questionId]: 'saved' }));
       setTimeout(() => {
         setVotingStatus(prev => ({ ...prev, [questionId]: 'idle' }));

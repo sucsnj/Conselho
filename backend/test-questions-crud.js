@@ -89,7 +89,8 @@ async function runTests() {
     const voteRes = await request('POST', '/api/votes', {
       voter_id: voter.id,
       question_id: newDecree.id,
-      voted_for_name: voter.name
+      voted_for_name: voter.name,
+      session_token: voter.session_token
     });
     console.log('6. Voto registrado no novo decreto:', voteRes.status === 200 ? '✅ OK' : '❌ Falhou');
 
