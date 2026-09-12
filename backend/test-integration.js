@@ -1,12 +1,16 @@
 // Teste automatizado de integração ponta a ponta da Corte de ADS
 const http = require('http');
+require('dotenv').config();
+
+const PORT = process.env.PORT || 5001;
+const ADMIN_PIN = process.env.ADMIN_PIN || '1234';
 
 function postJson(path, body, headers = {}) {
   return new Promise((resolve, reject) => {
     const data = JSON.stringify(body);
     const req = http.request({
       hostname: 'localhost',
-      port: 5000,
+      port: PORT,
       path,
       method: 'POST',
       headers: {
@@ -29,7 +33,7 @@ function getJson(path, headers = {}) {
   return new Promise((resolve, reject) => {
     const req = http.request({
       hostname: 'localhost',
-      port: 5000,
+      port: PORT,
       path,
       method: 'GET',
       headers

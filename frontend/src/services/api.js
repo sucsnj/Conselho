@@ -84,5 +84,28 @@ export const courtApi = {
   resetAll: (pin) => request('/api/admin/reset-all', {
     method: 'POST',
     headers: { 'x-admin-pin': pin }
+  }),
+
+  // Gestão de Combatentes e Mestres
+  updateParticipant: (pin, id, { name, title }) => request(`/api/admin/participants/${id}`, {
+    method: 'PUT',
+    headers: { 'x-admin-pin': pin },
+    body: JSON.stringify({ name, title })
+  }),
+
+  deleteParticipant: (pin, id) => request(`/api/admin/participants/${id}`, {
+    method: 'DELETE',
+    headers: { 'x-admin-pin': pin }
+  }),
+
+  updateProfessor: (pin, id, { name, subject }) => request(`/api/admin/professors/${id}`, {
+    method: 'PUT',
+    headers: { 'x-admin-pin': pin },
+    body: JSON.stringify({ name, subject })
+  }),
+
+  deleteProfessor: (pin, id) => request(`/api/admin/professors/${id}`, {
+    method: 'DELETE',
+    headers: { 'x-admin-pin': pin }
   })
 };
