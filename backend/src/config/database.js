@@ -44,6 +44,25 @@ function initializeDatabase() {
       UNIQUE(voter_id, question_id)
     );
 
+    CREATE TABLE IF NOT EXISTS categories (
+      id INTEGER PRIMARY KEY,
+      name TEXT NOT NULL,
+      emoji TEXT,
+      description TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS questions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      category_id INTEGER NOT NULL,
+      number INTEGER,
+      title TEXT NOT NULL,
+      subtitle TEXT NOT NULL,
+      target_type TEXT NOT NULL DEFAULT 'student',
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+      FOREIGN KEY (category_id) REFERENCES categories(id)
+    );
+
     CREATE TABLE IF NOT EXISTS session_config (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
@@ -54,6 +73,28 @@ function initializeDatabase() {
   const sessionActive = db.prepare("SELECT value FROM session_config WHERE key = 'session_active'").get();
   if (!sessionActive) {
     db.prepare("INSERT INTO session_config (key, value) VALUES ('session_active', '1')").run();
+  }
+
+  // Inserir categorias e decretos pré-cadastrados se ainda não existem
+  const categoriesCount = db.prepare('SELECT COUNT(*) as c FROM categories').get().c;
+  if (categoriesCount === 0) {
+    const { CATEGORIES, QUESTIONS } = require('../data/questionsData');
+    const insertCat = db.prepare('INSERT INTO categories (id, name, emoji, description) VALUES (?, ?, ?, ?)');
+    const catTx = db.transaction(() => {
+      CATEGORIES.forEach(cat => {
+        insertCat.run(cat.id, cat.name, cat.emoji, cat.description);
+      });
+    });
+    catTx();
+
+    const insertQuestion = db.prepare('INSERT INTO questions (id, category_id, number, title, subtitle, target_type, is_active) VALUES (?, ?, ?, ?, ?, ?, 1)');
+    const qTx = db.transaction(() => {
+      QUESTIONS.forEach(q => {
+        insertQuestion.run(q.id, q.category_id, q.number, q.title, q.subtitle, q.target_type || 'student');
+      });
+    });
+    qTx();
+    console.log('📜 48 Decretos Reais e 5 Categorias inicializados no banco de dados!');
   }
 
   // Inserir professores pré-cadastrados se ainda não existem

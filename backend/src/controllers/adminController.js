@@ -1,5 +1,4 @@
 const { db } = require('../config/database');
-const { QUESTIONS, CATEGORIES } = require('../data/questionsData');
 
 const adminController = {
   verifyPin: (req, res) => {
@@ -9,7 +8,19 @@ const adminController = {
 
   getResults: (req, res) => {
     try {
-      // 1. Obter todos os votos agrupados por questão e por candidato
+      // 1. Obter perguntas e categorias ativas do banco
+      const activeQuestions = db.prepare(`
+        SELECT q.id, q.category_id, q.number, q.title, q.subtitle, q.target_type, q.is_active,
+               c.name as category_name, c.emoji as category_emoji
+        FROM questions q
+        JOIN categories c ON q.category_id = c.id
+        WHERE q.is_active = 1
+        ORDER BY q.category_id ASC, q.number ASC, q.id ASC
+      `).all();
+
+      const activeCategories = db.prepare('SELECT * FROM categories ORDER BY id ASC').all();
+
+      // 2. Obter todos os votos agrupados por questão e por candidato
       const voteAggregates = db.prepare(`
         SELECT question_id, voted_for_name, COUNT(*) as vote_count
         FROM votes
@@ -24,7 +35,7 @@ const adminController = {
       // Montar mapa de resultados por question_id
       const resultsByQuestion = {};
 
-      QUESTIONS.forEach(q => {
+      activeQuestions.forEach(q => {
         resultsByQuestion[q.id] = {
           question: q,
           total_votes: 0,
@@ -61,10 +72,11 @@ const adminController = {
       });
 
       // Agrupar resultados por categoria
-      const resultsByCategory = CATEGORIES.map(category => {
-        const categoryQuestions = QUESTIONS
+      const resultsByCategory = activeCategories.map(category => {
+        const categoryQuestions = activeQuestions
           .filter(q => q.category_id === category.id)
-          .map(q => resultsByQuestion[q.id]);
+          .map(q => resultsByQuestion[q.id])
+          .filter(Boolean);
 
         return {
           category,
@@ -76,7 +88,7 @@ const adminController = {
         summary: {
           totalParticipants,
           totalVotesCast,
-          totalQuestions: QUESTIONS.length
+          totalQuestions: activeQuestions.length
         },
         resultsByCategory,
         resultsByQuestion
@@ -250,6 +262,117 @@ const adminController = {
     } catch (error) {
       console.error('Erro ao expurgar mestre:', error);
       return res.status(500).json({ error: 'Erro ao expurgar mestre.' });
+    }
+  },
+
+  createQuestion: (req, res) => {
+    try {
+      const { title, subtitle, category_id, target_type } = req.body;
+
+      if (!title || !title.trim()) {
+        return res.status(400).json({ error: 'O título do decreto é obrigatório!' });
+      }
+      if (!subtitle || !subtitle.trim()) {
+        return res.status(400).json({ error: 'O subtítulo do decreto é obrigatório!' });
+      }
+      if (!category_id) {
+        return res.status(400).json({ error: 'A categoria do decreto é obrigatória!' });
+      }
+
+      const cat = db.prepare('SELECT id FROM categories WHERE id = ?').get(category_id);
+      if (!cat) {
+        return res.status(400).json({ error: 'Categoria informada não existe.' });
+      }
+
+      // Próximo número do decreto para ordenação
+      const maxNumRow = db.prepare('SELECT MAX(number) as m FROM questions WHERE category_id = ?').get(category_id);
+      const nextNumber = (maxNumRow && maxNumRow.m) ? maxNumRow.m + 1 : 1;
+      const cleanTarget = target_type === 'professor' ? 'professor' : 'student';
+
+      const insert = db.prepare(`
+        INSERT INTO questions (category_id, number, title, subtitle, target_type, is_active)
+        VALUES (?, ?, ?, ?, ?, 1)
+      `).run(category_id, nextNumber, title.trim(), subtitle.trim(), cleanTarget);
+
+      const newQuestion = db.prepare(`
+        SELECT q.*, c.name as category_name, c.emoji as category_emoji
+        FROM questions q
+        JOIN categories c ON q.category_id = c.id
+        WHERE q.id = ?
+      `).get(insert.lastInsertRowid);
+
+      return res.status(201).json({
+        message: 'Novo decreto proclamado com sucesso perante a Corte!',
+        question: newQuestion
+      });
+    } catch (error) {
+      console.error('Erro ao criar decreto:', error);
+      return res.status(500).json({ error: 'Erro ao proclamar novo decreto real.' });
+    }
+  },
+
+  updateQuestion: (req, res) => {
+    try {
+      const { id } = req.params;
+      const { title, subtitle, category_id, target_type } = req.body;
+
+      const existing = db.prepare('SELECT * FROM questions WHERE id = ?').get(id);
+      if (!existing) {
+        return res.status(404).json({ error: 'Decreto real não encontrado.' });
+      }
+
+      const cleanTitle = title && title.trim() ? title.trim() : existing.title;
+      const cleanSubtitle = subtitle && subtitle.trim() ? subtitle.trim() : existing.subtitle;
+      const cleanCategory = category_id ? Number(category_id) : existing.category_id;
+      const cleanTarget = target_type ? (target_type === 'professor' ? 'professor' : 'student') : existing.target_type;
+
+      db.prepare(`
+        UPDATE questions
+        SET title = ?, subtitle = ?, category_id = ?, target_type = ?
+        WHERE id = ?
+      `).run(cleanTitle, cleanSubtitle, cleanCategory, cleanTarget, id);
+
+      const updated = db.prepare(`
+        SELECT q.*, c.name as category_name, c.emoji as category_emoji
+        FROM questions q
+        JOIN categories c ON q.category_id = c.id
+        WHERE q.id = ?
+      `).get(id);
+
+      return res.json({
+        message: 'Decreto real atualizado com sucesso nos anais da Corte!',
+        question: updated
+      });
+    } catch (error) {
+      console.error('Erro ao atualizar decreto:', error);
+      return res.status(500).json({ error: 'Erro ao atualizar decreto real.' });
+    }
+  },
+
+  deleteQuestion: (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const existing = db.prepare('SELECT * FROM questions WHERE id = ?').get(id);
+      if (!existing) {
+        return res.status(404).json({ error: 'Decreto real não encontrado.' });
+      }
+
+      // Transação para remover os votos vinculados a este decreto e o decreto em si
+      const deleteTx = db.transaction(() => {
+        db.prepare('DELETE FROM votes WHERE question_id = ?').run(id);
+        db.prepare('DELETE FROM questions WHERE id = ?').run(id);
+      });
+
+      deleteTx();
+
+      return res.json({
+        message: `Decreto #${existing.number} (${existing.title}) foi expurgado da Corte e seus votos removidos!`,
+        id: Number(id)
+      });
+    } catch (error) {
+      console.error('Erro ao excluir decreto:', error);
+      return res.status(500).json({ error: 'Erro ao excluir decreto real.' });
     }
   }
 };

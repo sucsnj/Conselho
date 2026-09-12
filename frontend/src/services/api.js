@@ -107,5 +107,23 @@ export const courtApi = {
   deleteProfessor: (pin, id) => request(`/api/admin/professors/${id}`, {
     method: 'DELETE',
     headers: { 'x-admin-pin': pin }
+  }),
+
+  // Gestão de Decretos (Perguntas)
+  createQuestion: (pin, data) => request('/api/admin/questions', {
+    method: 'POST',
+    headers: { 'x-admin-pin': pin },
+    body: JSON.stringify(data)
+  }),
+
+  updateQuestion: (pin, id, data) => request(`/api/admin/questions/${id}`, {
+    method: 'PUT',
+    headers: { 'x-admin-pin': pin },
+    body: JSON.stringify(data)
+  }),
+
+  deleteQuestion: (pin, id) => request(`/api/admin/questions/${id}`, {
+    method: 'DELETE',
+    headers: { 'x-admin-pin': pin }
   })
 };

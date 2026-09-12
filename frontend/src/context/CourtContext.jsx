@@ -200,6 +200,7 @@ export function CourtProvider({ children }) {
         refreshProfessors: fetchProfessors,
         questions,
         categories,
+        refreshQuestions: fetchQuestionsAndCategories,
         activeCategory,
         setActiveCategory,
         myVotes,

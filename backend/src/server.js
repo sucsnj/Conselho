@@ -69,6 +69,9 @@ app.put('/api/admin/participants/:id', authMiddleware, adminController.updatePar
 app.delete('/api/admin/participants/:id', authMiddleware, adminController.deleteParticipant);
 app.put('/api/admin/professors/:id', authMiddleware, adminController.updateProfessor);
 app.delete('/api/admin/professors/:id', authMiddleware, adminController.deleteProfessor);
+app.post('/api/admin/questions', authMiddleware, adminController.createQuestion);
+app.put('/api/admin/questions/:id', authMiddleware, adminController.updateQuestion);
+app.delete('/api/admin/questions/:id', authMiddleware, adminController.deleteQuestion);
 
 // Inicializar banco de dados e subir servidor
 try {

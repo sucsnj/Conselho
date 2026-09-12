@@ -1,5 +1,4 @@
 const { db } = require('../config/database');
-const { QUESTIONS } = require('../data/questionsData');
 
 const voteController = {
   submitVote: (req, res) => {
@@ -16,8 +15,8 @@ const voteController = {
         return res.status(404).json({ error: 'Combatente votante não identificado nos registros.' });
       }
 
-      // Validar questão
-      const question = QUESTIONS.find(q => q.id === Number(question_id));
+      // Validar questão no banco dinâmico
+      const question = db.prepare('SELECT * FROM questions WHERE id = ? AND is_active = 1').get(Number(question_id));
       if (!question) {
         return res.status(404).json({ error: 'Decreto/pergunta inexistente.' });
       }
@@ -37,6 +36,7 @@ const voteController = {
 
       // Obter total de votos já realizados por esse combatente
       const progress = db.prepare('SELECT COUNT(*) as voted_count FROM votes WHERE voter_id = ?').get(voter_id);
+      const totalQuestions = db.prepare('SELECT COUNT(*) as c FROM questions WHERE is_active = 1').get().c;
 
       return res.json({
         message: 'Voto selado pela Coroa com sucesso!',
@@ -44,7 +44,7 @@ const voteController = {
         question_id: Number(question_id),
         voted_for_name: cleanVotedFor,
         voted_count: progress.voted_count,
-        total_questions: QUESTIONS.length
+        total_questions: totalQuestions
       });
     } catch (error) {
       console.error('Erro ao registrar voto:', error);
@@ -62,21 +62,20 @@ const voteController = {
         WHERE voter_id = ?
       `).all(voterId);
 
-      // Mapear como um dicionário { [question_id]: voted_for_name }
-      const votesMap = {};
+      // Mapear { [question_id]: voted_for_name }
+      const voteMap = {};
       votes.forEach(v => {
-        votesMap[v.question_id] = v.voted_for_name;
+        voteMap[v.question_id] = v.voted_for_name;
       });
 
       return res.json({
         voter_id: Number(voterId),
         total_voted: votes.length,
-        total_questions: QUESTIONS.length,
-        votes: votesMap
+        votes: voteMap
       });
     } catch (error) {
-      console.error('Erro ao buscar votos do usuário:', error);
-      return res.status(500).json({ error: 'Erro ao resgatar histórico de votos.' });
+      console.error('Erro ao buscar votos do combatente:', error);
+      return res.status(500).json({ error: 'Erro ao resgatar pergaminhos de voto.' });
     }
   },
 
@@ -85,13 +84,14 @@ const voteController = {
       const totalParticipants = db.prepare('SELECT COUNT(*) as c FROM participants').get().c;
       const totalVotes = db.prepare('SELECT COUNT(*) as c FROM votes').get().c;
       const activeVoters = db.prepare('SELECT COUNT(DISTINCT voter_id) as c FROM votes').get().c;
+      const totalQuestions = db.prepare('SELECT COUNT(*) as c FROM questions WHERE is_active = 1').get().c;
 
       return res.json({
         totalParticipants,
         totalVotes,
         activeVoters,
-        totalQuestions: QUESTIONS.length,
-        potentialVotes: totalParticipants * QUESTIONS.length
+        totalQuestions,
+        potentialVotes: totalParticipants * totalQuestions
       });
     } catch (error) {
       console.error('Erro ao buscar estatísticas:', error);

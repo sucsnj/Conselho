@@ -121,7 +121,7 @@ export default function CheckInModal({ isOpen, onClose, canClose = true }) {
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Ex: João Vitor, Ana Clara, Dev Caio..."
+              placeholder="Ex: Cris, Rogens, Edvan..."
               className="w-full px-4 py-3 rounded-lg bg-obsidian-850 border border-gold-600/40 text-parchment-100 placeholder-parchment-500/50 focus:outline-none focus:border-gold-400 focus:ring-1 focus:ring-gold-400 text-sm font-medium"
             />
           </div>

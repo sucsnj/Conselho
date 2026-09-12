@@ -77,7 +77,7 @@ export default function AdminModal({ isOpen, onClose, onSuccess }) {
               <Key className="w-4 h-4 text-gold-400 absolute right-3 top-3 pointer-events-none opacity-50" />
             </div>
             <p className="text-[11px] text-parchment-400 text-center mt-1.5 font-heading">
-              (Padrão inicial: <code className="text-gold-300 bg-obsidian-800 px-1 py-0.5 rounded">1234</code>)
+              (Somente com magia!... Na verdade ta no  <code className="text-gold-300 bg-obsidian-800 px-1 py-0.5 rounded">.env</code>)
             </p>
           </div>
 

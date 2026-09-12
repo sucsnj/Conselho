@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Crown, Trophy, Users, Scroll, Play, RefreshCw, AlertTriangle,
   ArrowLeft, Shield, CheckCircle2, Edit2, Trash2, Search,
-  GraduationCap, X, Check, Swords, ShieldAlert, Plus
+  GraduationCap, X, Check, Swords, ShieldAlert, Plus, BookOpen, Sparkles
 } from 'lucide-react';
 import { courtApi } from '../services/api';
 import { useCourt } from '../context/CourtContext';
@@ -10,9 +10,9 @@ import CeremonyMode from './CeremonyMode';
 import AddProfessorModal from './AddProfessorModal';
 
 export default function AdminDashboard({ pin, onClose }) {
-  const { refreshParticipants, refreshProfessors } = useCourt();
+  const { refreshParticipants, refreshProfessors, refreshQuestions } = useCourt();
 
-  // Visualização ativa: 'results' (apuração) ou 'management' (gestão de combatentes/mestres)
+  // Visualização ativa: 'results' (apuração) ou 'management' (gestão de combatentes/mestres/decretos)
   const [viewMode, setViewMode] = useState('results');
   
   // Apuração e Resultados
@@ -26,7 +26,12 @@ export default function AdminDashboard({ pin, onClose }) {
   // Listas de Gestão
   const [participantsList, setParticipantsList] = useState([]);
   const [professorsList, setProfessorsList] = useState([]);
-  const [managementTab, setManagementTab] = useState('combatentes'); // 'combatentes' | 'mestres'
+  const [questionsList, setQuestionsList] = useState([]);
+  const [categoriesList, setCategoriesList] = useState([]);
+  
+  // Sub-abas de Gestão: 'combatentes' | 'mestres' | 'decretos'
+  const [managementTab, setManagementTab] = useState('combatentes');
+  const [selectedDecreeCategory, setSelectedDecreeCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddProfOpen, setIsAddProfOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -34,6 +39,8 @@ export default function AdminDashboard({ pin, onClose }) {
   // Estados de Modais de Ação
   const [editingItem, setEditingItem] = useState(null); // { type, id, name, title, subject }
   const [expungingItem, setExpungingItem] = useState(null); // { type, id, name }
+  const [editingDecree, setEditingDecree] = useState(null); // { id, title, subtitle, category_id, target_type }
+  const [deletingDecree, setDeletingDecree] = useState(null); // { id, number, title }
 
   const fetchResults = async () => {
     setLoading(true);
@@ -57,13 +64,27 @@ export default function AdminDashboard({ pin, onClose }) {
       setParticipantsList(partData.participants || []);
       setProfessorsList(profData.professors || []);
     } catch (err) {
-      console.error('Erro ao buscar lista para gestão:', err);
+      console.error('Erro ao buscar combatentes e mestres:', err);
+    }
+  };
+
+  const fetchDecrees = async () => {
+    try {
+      const [qData, cData] = await Promise.all([
+        courtApi.getQuestions(),
+        courtApi.getCategories()
+      ]);
+      setQuestionsList(qData.questions || []);
+      setCategoriesList(cData.categories || []);
+    } catch (err) {
+      console.error('Erro ao buscar decretos e categorias:', err);
     }
   };
 
   useEffect(() => {
     fetchResults();
     fetchRoster();
+    fetchDecrees();
   }, [pin]);
 
   // Salvar Renomeação (Combatente ou Mestre)
@@ -97,7 +118,7 @@ export default function AdminDashboard({ pin, onClose }) {
     }
   };
 
-  // Confirmar Expurgo Individual
+  // Confirmar Expurgo Individual (Combatente ou Mestre)
   const handleConfirmExpunge = async () => {
     if (!expungingItem) return;
 
@@ -116,6 +137,59 @@ export default function AdminDashboard({ pin, onClose }) {
       refreshProfessors();
     } catch (err) {
       alert(err.message || 'Erro ao expurgar.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Salvar Decreto (Criar ou Editar)
+  const handleSaveDecree = async (e) => {
+    if (e) e.preventDefault();
+    if (!editingDecree || !editingDecree.title.trim() || !editingDecree.subtitle.trim()) return;
+
+    setIsSubmitting(true);
+    try {
+      if (editingDecree.id) {
+        // Atualizar existente
+        await courtApi.updateQuestion(pin, editingDecree.id, {
+          title: editingDecree.title.trim(),
+          subtitle: editingDecree.subtitle.trim(),
+          category_id: Number(editingDecree.category_id),
+          target_type: editingDecree.target_type
+        });
+        setActionMessage(`👑 Decreto #${editingDecree.number || ''} atualizado com sucesso!`);
+      } else {
+        // Criar novo
+        await courtApi.createQuestion(pin, {
+          title: editingDecree.title.trim(),
+          subtitle: editingDecree.subtitle.trim(),
+          category_id: Number(editingDecree.category_id),
+          target_type: editingDecree.target_type
+        });
+        setActionMessage('👑 Novo decreto real proclamado perante a Corte!');
+      }
+      setEditingDecree(null);
+      await Promise.all([fetchDecrees(), fetchResults()]);
+      if (refreshQuestions) refreshQuestions();
+    } catch (err) {
+      alert(err.message || 'Erro ao salvar decreto.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Confirmar Exclusão de Decreto
+  const handleConfirmDeleteDecree = async () => {
+    if (!deletingDecree) return;
+    setIsSubmitting(true);
+    try {
+      await courtApi.deleteQuestion(pin, deletingDecree.id);
+      setActionMessage(`🗑️ Decreto #${deletingDecree.number} excluído e votos expurgados!`);
+      setDeletingDecree(null);
+      await Promise.all([fetchDecrees(), fetchResults()]);
+      if (refreshQuestions) refreshQuestions();
+    } catch (err) {
+      alert(err.message || 'Erro ao excluir decreto.');
     } finally {
       setIsSubmitting(false);
     }
@@ -160,6 +234,13 @@ export default function AdminDashboard({ pin, onClose }) {
     (p.subject && p.subject.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
+  const filteredQuestions = questionsList.filter(q => {
+    const matchesCategory = selectedDecreeCategory === 'all' || q.category_id === Number(selectedDecreeCategory);
+    const matchesSearch = q.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      q.subtitle.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
+
   if (isCeremonyOpen && results) {
     return (
       <CeremonyMode
@@ -186,14 +267,14 @@ export default function AdminDashboard({ pin, onClose }) {
                 Cofre da Coroa & Apuração
               </h1>
               <p className="text-xs text-parchment-400 font-heading">
-                Painel do Mestre de Cerimônias e Gestão da Turma
+                Painel do Mestre de Cerimônias e Gestão da Corte
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
             <button
-              onClick={() => { fetchResults(); fetchRoster(); }}
+              onClick={() => { fetchResults(); fetchRoster(); fetchDecrees(); }}
               title="Recarregar dados"
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-obsidian-900 border border-gold-600/30 text-xs font-heading font-semibold text-parchment-200 hover:border-gold-400 transition-colors"
             >
@@ -213,7 +294,7 @@ export default function AdminDashboard({ pin, onClose }) {
 
         {/* Notificação de Ação */}
         {actionMessage && (
-          <div className="mb-6 p-3.5 rounded-xl bg-emerald-950/90 border border-emerald-500/60 text-xs sm:text-sm text-emerald-200 flex items-center justify-between shadow-lg">
+          <div className="mb-6 p-3.5 rounded-xl bg-emerald-950/90 border border-emerald-500/60 text-xs sm:text-sm text-emerald-200 flex items-center justify-between shadow-lg animate-fade-in">
             <div className="flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
               <span>{actionMessage}</span>
@@ -244,12 +325,12 @@ export default function AdminDashboard({ pin, onClose }) {
                 : 'text-parchment-400 hover:text-parchment-200'
             }`}
           >
-            <Users className="w-4 h-4" />
+            <Shield className="w-4 h-4" />
             <span>Gestão da Corte</span>
             <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
               viewMode === 'management' ? 'bg-obsidian-950 text-gold-400' : 'bg-royal-950 text-parchment-300'
             }`}>
-              {participantsList.length}
+              {participantsList.length + professorsList.length + questionsList.length}
             </span>
           </button>
         </div>
@@ -433,16 +514,16 @@ export default function AdminDashboard({ pin, onClose }) {
         )}
 
         {/* ========================================================================= */}
-        {/* ABA 2: GESTÃO DA CORTE (RENOMEAR & EXPURGAR INDIVIDUALMENTE) */}
+        {/* ABA 2: GESTÃO DA CORTE (COMBATENTES, MESTRES E DECRETOS) */}
         {/* ========================================================================= */}
         {viewMode === 'management' && (
           <div className="space-y-6">
-            {/* Sub-abas e Filtros de Busca */}
+            {/* Sub-abas de Gestão */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 p-4 rounded-2xl bg-obsidian-900/80 border border-gold-600/30">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 scrollbar-thin">
                 <button
-                  onClick={() => setManagementTab('combatentes')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-heading font-bold transition-all ${
+                  onClick={() => { setManagementTab('combatentes'); setSearchQuery(''); }}
+                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-heading font-bold whitespace-nowrap transition-all ${
                     managementTab === 'combatentes'
                       ? 'bg-royal-900 border border-gold-400 text-gold-300 shadow-gold-glow'
                       : 'bg-obsidian-950 border border-gold-600/20 text-parchment-400 hover:text-parchment-200'
@@ -453,20 +534,32 @@ export default function AdminDashboard({ pin, onClose }) {
                 </button>
 
                 <button
-                  onClick={() => setManagementTab('mestres')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-heading font-bold transition-all ${
+                  onClick={() => { setManagementTab('mestres'); setSearchQuery(''); }}
+                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-heading font-bold whitespace-nowrap transition-all ${
                     managementTab === 'mestres'
                       ? 'bg-royal-900 border border-gold-400 text-gold-300 shadow-gold-glow'
                       : 'bg-obsidian-950 border border-gold-600/20 text-parchment-400 hover:text-parchment-200'
                   }`}
                 >
                   <GraduationCap className="w-3.5 h-3.5" />
-                  <span>Conselho de Mestres ({professorsList.length})</span>
+                  <span>Mestres ({professorsList.length})</span>
+                </button>
+
+                <button
+                  onClick={() => { setManagementTab('decretos'); setSearchQuery(''); }}
+                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-heading font-bold whitespace-nowrap transition-all ${
+                    managementTab === 'decretos'
+                      ? 'bg-royal-900 border border-gold-400 text-gold-300 shadow-gold-glow'
+                      : 'bg-obsidian-950 border border-gold-600/20 text-parchment-400 hover:text-parchment-200'
+                  }`}
+                >
+                  <BookOpen className="w-3.5 h-3.5" />
+                  <span>Decretos ({questionsList.length})</span>
                 </button>
               </div>
 
               <div className="flex items-center gap-2">
-                <div className="relative flex-1 sm:w-64">
+                <div className="relative flex-1 sm:w-60">
                   <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-parchment-400" />
                   <input
                     type="text"
@@ -488,16 +581,33 @@ export default function AdminDashboard({ pin, onClose }) {
                 {managementTab === 'mestres' && (
                   <button
                     onClick={() => setIsAddProfOpen(true)}
-                    className="flex items-center gap-1.5 px-3 py-2 bg-gold-600 hover:bg-gold-500 text-obsidian-950 rounded-xl text-xs font-heading font-bold transition-all shrink-0"
+                    className="flex items-center gap-1.5 px-3 py-2 bg-gold-600 hover:bg-gold-500 text-obsidian-950 rounded-xl text-xs font-heading font-bold transition-all shrink-0 shadow-gold-glow"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    <span>Adicionar</span>
+                    <span>Mestre</span>
+                  </button>
+                )}
+
+                {managementTab === 'decretos' && (
+                  <button
+                    onClick={() => setEditingDecree({
+                      id: null,
+                      number: questionsList.length + 1,
+                      title: '',
+                      subtitle: '',
+                      category_id: categoriesList[0]?.id || 1,
+                      target_type: 'student'
+                    })}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-gold-600 to-gold-500 hover:brightness-110 text-obsidian-950 rounded-xl text-xs font-heading font-bold transition-all shrink-0 shadow-gold-glow"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Novo Decreto</span>
                   </button>
                 )}
               </div>
             </div>
 
-            {/* Listagem de Combatentes */}
+            {/* SUB-ABA 1: LISTAGEM DE COMBATENTES */}
             {managementTab === 'combatentes' && (
               <div className="space-y-3">
                 {filteredParticipants.length === 0 ? (
@@ -564,7 +674,7 @@ export default function AdminDashboard({ pin, onClose }) {
               </div>
             )}
 
-            {/* Listagem de Mestres (Professores) */}
+            {/* SUB-ABA 2: LISTAGEM DE MESTRES (PROFESSORES) */}
             {managementTab === 'mestres' && (
               <div className="space-y-3">
                 {filteredProfessors.length === 0 ? (
@@ -621,6 +731,114 @@ export default function AdminDashboard({ pin, onClose }) {
                               name: prof.name
                             })}
                             title="Expurgar mestre do Conselho"
+                            className="p-2 rounded-lg bg-obsidian-950 border border-red-700/40 text-red-400 hover:bg-red-950 hover:border-red-500 transition-all"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* SUB-ABA 3: GESTÃO DE DECRETOS (PERGUNTAS) */}
+            {managementTab === 'decretos' && (
+              <div className="space-y-4">
+                {/* Filtro de Categorias de Decretos */}
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
+                  <button
+                    onClick={() => setSelectedDecreeCategory('all')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-heading font-semibold whitespace-nowrap transition-all ${
+                      selectedDecreeCategory === 'all'
+                        ? 'bg-gold-500 text-obsidian-950 shadow-gold-glow'
+                        : 'bg-obsidian-900 border border-gold-600/20 text-parchment-400 hover:text-parchment-200'
+                    }`}
+                  >
+                    Todos os Tomos ({questionsList.length})
+                  </button>
+
+                  {categoriesList.map(cat => (
+                    <button
+                      key={cat.id}
+                      onClick={() => setSelectedDecreeCategory(cat.id)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-heading font-semibold whitespace-nowrap transition-all ${
+                        selectedDecreeCategory === cat.id
+                          ? 'bg-gold-500 text-obsidian-950 shadow-gold-glow'
+                          : 'bg-obsidian-900 border border-gold-600/20 text-parchment-400 hover:text-parchment-200'
+                      }`}
+                    >
+                      <span>{cat.emoji}</span>
+                      <span>{cat.name}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {filteredQuestions.length === 0 ? (
+                  <div className="text-center py-16 bg-obsidian-900/50 border border-gold-600/20 rounded-2xl">
+                    <BookOpen className="w-10 h-10 text-parchment-500 mx-auto mb-2 opacity-50" />
+                    <p className="font-heading text-sm text-parchment-400">
+                      Nenhum decreto real encontrado neste critério de busca.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {filteredQuestions.map((q) => (
+                      <div
+                        key={q.id}
+                        className="p-4 rounded-xl bg-obsidian-900/90 border border-gold-600/30 hover:border-gold-500/50 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 group"
+                      >
+                        <div className="flex items-start gap-3 min-w-0">
+                          <div className="px-2.5 py-1 rounded-lg bg-royal-950 border border-gold-500/40 text-gold-400 font-heading font-bold text-xs shrink-0 mt-0.5">
+                            #{q.number}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2 mb-1">
+                              <span className="text-[10px] px-2 py-0.5 rounded bg-obsidian-950 border border-gold-600/30 text-gold-400 font-heading">
+                                {q.category_emoji} {q.category_name}
+                              </span>
+                              <span className={`text-[10px] px-2 py-0.5 rounded font-semibold ${
+                                q.target_type === 'professor'
+                                  ? 'bg-purple-950/80 border border-purple-600/40 text-purple-300'
+                                  : 'bg-royal-950/80 border border-royal-600/40 text-royal-300'
+                              }`}>
+                                {q.target_type === 'professor' ? '🧙 Conselho de Mestres' : '⚔️ Combatentes da Turma'}
+                              </span>
+                            </div>
+                            <h4 className="font-heading font-bold text-sm text-parchment-100 group-hover:text-gold-300 transition-colors">
+                              {q.title}
+                            </h4>
+                            <p className="text-xs text-gold-400/80 italic font-heading mt-0.5">
+                              Subtítulo: "{q.subtitle}"
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                          <button
+                            onClick={() => setEditingDecree({
+                              id: q.id,
+                              number: q.number,
+                              title: q.title,
+                              subtitle: q.subtitle,
+                              category_id: q.category_id,
+                              target_type: q.target_type || 'student'
+                            })}
+                            title="Editar título e subtítulo do decreto"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-obsidian-950 border border-gold-600/30 text-parchment-300 hover:text-gold-300 hover:border-gold-400 transition-all text-xs font-heading font-semibold"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                            <span>Editar</span>
+                          </button>
+
+                          <button
+                            onClick={() => setDeletingDecree({
+                              id: q.id,
+                              number: q.number,
+                              title: q.title
+                            })}
+                            title="Excluir decreto da Corte"
                             className="p-2 rounded-lg bg-obsidian-950 border border-red-700/40 text-red-400 hover:bg-red-950 hover:border-red-500 transition-all"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -727,7 +945,7 @@ export default function AdminDashboard({ pin, onClose }) {
         )}
 
         {/* ========================================================================= */}
-        {/* MODAL: CONFIRMAÇÃO DE EXPURGO INDIVIDUAL */}
+        {/* MODAL: EXPURGAR INDIVIDUAL (COMBATENTE OU MESTRE) */}
         {/* ========================================================================= */}
         {expungingItem && (
           <div className="fixed inset-0 z-[60] bg-obsidian-950/85 backdrop-blur-sm flex items-center justify-center p-4">
@@ -747,7 +965,7 @@ export default function AdminDashboard({ pin, onClose }) {
                   <ul className="list-disc pl-4 text-red-200/90 space-y-1">
                     <li>O participante será removido da lista de combatentes.</li>
                     <li>Todos os votos emitidos por ele serão cancelados.</li>
-                    <li>Todos os votos que outros participantes deram nele serão expurgados para não gerar dados fantasmas.</li>
+                    <li>Todos os votos que outros deram nele serão expurgados para não gerar dados fantasmas.</li>
                   </ul>
                 ) : (
                   <ul className="list-disc pl-4 text-red-200/90 space-y-1">
@@ -774,6 +992,158 @@ export default function AdminDashboard({ pin, onClose }) {
                 >
                   <Trash2 className="w-4 h-4" />
                   <span>{isSubmitting ? 'Expurgando...' : 'Confirmar Expurgo'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* MODAL: CRIAR OU EDITAR DECRETO REAL (PERGUNTA) */}
+        {/* ========================================================================= */}
+        {editingDecree && (
+          <div className="fixed inset-0 z-[60] bg-obsidian-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="w-full max-w-lg bg-obsidian-900 border-2 border-gold-500/80 rounded-2xl p-6 shadow-gold-glow animate-fade-in text-parchment-100">
+              <div className="flex items-center justify-between mb-4 border-b border-gold-600/30 pb-3">
+                <div className="flex items-center gap-2 text-gold-400 font-medieval text-lg font-bold">
+                  <BookOpen className="w-5 h-5" />
+                  <span>{editingDecree.id ? `Editar Decreto #${editingDecree.number}` : 'Proclamar Novo Decreto'}</span>
+                </div>
+                <button
+                  onClick={() => setEditingDecree(null)}
+                  className="text-parchment-400 hover:text-parchment-100 p-1"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveDecree} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-heading font-bold text-gold-300 mb-1.5">
+                    Título / Pergunta do Decreto *
+                  </label>
+                  <textarea
+                    rows={3}
+                    required
+                    value={editingDecree.title}
+                    onChange={(e) => setEditingDecree({ ...editingDecree, title: e.target.value })}
+                    className="w-full px-3.5 py-2.5 bg-obsidian-950 border border-gold-600/40 rounded-xl text-sm text-parchment-100 focus:outline-none focus:border-gold-400"
+                    placeholder="Ex: Quem é mais provável de comitar direto na branch main?"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-heading font-bold text-gold-300 mb-1.5">
+                    Subtítulo / Título Cômico do Decreto *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editingDecree.subtitle}
+                    onChange={(e) => setEditingDecree({ ...editingDecree, subtitle: e.target.value })}
+                    className="w-full px-3.5 py-2.5 bg-obsidian-950 border border-gold-600/40 rounded-xl text-sm text-parchment-100 focus:outline-none focus:border-gold-400"
+                    placeholder="Ex: O Herege do Git"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-heading font-bold text-gold-300 mb-1.5">
+                      Tomo / Categoria *
+                    </label>
+                    <select
+                      value={editingDecree.category_id}
+                      onChange={(e) => setEditingDecree({ ...editingDecree, category_id: Number(e.target.value) })}
+                      className="w-full px-3 py-2.5 bg-obsidian-950 border border-gold-600/40 rounded-xl text-xs text-parchment-100 focus:outline-none focus:border-gold-400"
+                    >
+                      {categoriesList.map(cat => (
+                        <option key={cat.id} value={cat.id}>
+                          {cat.emoji} {cat.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-heading font-bold text-gold-300 mb-1.5">
+                      Quem pode receber votos? *
+                    </label>
+                    <select
+                      value={editingDecree.target_type}
+                      onChange={(e) => setEditingDecree({ ...editingDecree, target_type: e.target.value })}
+                      className="w-full px-3 py-2.5 bg-obsidian-950 border border-gold-600/40 rounded-xl text-xs text-parchment-100 focus:outline-none focus:border-gold-400"
+                    >
+                      <option value="student">⚔️ Combatentes (Alunos)</option>
+                      <option value="professor">🧙 Conselho dos Mestres (Professores)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-4 border-t border-gold-600/20">
+                  <button
+                    type="button"
+                    onClick={() => setEditingDecree(null)}
+                    className="px-4 py-2 rounded-xl bg-obsidian-950 border border-gold-600/30 text-xs font-heading font-semibold text-parchment-300 hover:text-parchment-100"
+                  >
+                    Cancelar
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={isSubmitting || !editingDecree.title.trim() || !editingDecree.subtitle.trim()}
+                    className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-gradient-to-r from-gold-600 to-gold-500 text-obsidian-950 font-heading font-bold text-xs shadow-gold-glow hover:brightness-110 active:scale-95 transition-all disabled:opacity-50"
+                  >
+                    <Check className="w-4 h-4" />
+                    <span>{isSubmitting ? 'Gravando...' : editingDecree.id ? 'Salvar Decreto' : 'Proclamar Decreto'}</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* MODAL: EXCLUIR DECRETO REAL */}
+        {/* ========================================================================= */}
+        {deletingDecree && (
+          <div className="fixed inset-0 z-[60] bg-obsidian-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="w-full max-w-md bg-obsidian-900 border-2 border-red-600/80 rounded-2xl p-6 shadow-2xl animate-fade-in text-parchment-100">
+              <div className="flex items-center gap-3 text-red-400 mb-3">
+                <ShieldAlert className="w-6 h-6 shrink-0" />
+                <h3 className="font-medieval text-lg font-bold text-red-300">
+                  Revogar Decreto #{deletingDecree.number}
+                </h3>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-red-950/40 border border-red-700/40 text-xs text-parchment-300 mb-5 space-y-2">
+                <p>
+                  Tem certeza que deseja revogar permanentemente o decreto:
+                </p>
+                <p className="font-heading font-bold text-red-200">
+                  "{deletingDecree.title}"?
+                </p>
+                <p className="text-red-300/90 text-[11px]">
+                  ⚠️ Todos os votos selados pelos combatentes para este decreto específico serão removidos dos tomos da Corte.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setDeletingDecree(null)}
+                  className="px-4 py-2 rounded-xl bg-obsidian-950 border border-gold-600/30 text-xs font-heading font-semibold text-parchment-300 hover:text-parchment-100"
+                >
+                  Voltar
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleConfirmDeleteDecree}
+                  disabled={isSubmitting}
+                  className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-gradient-to-r from-red-700 to-red-600 text-parchment-100 font-heading font-bold text-xs shadow-lg hover:brightness-110 active:scale-95 transition-all disabled:opacity-50"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>{isSubmitting ? 'Revogando...' : 'Confirmar Exclusão'}</span>
                 </button>
               </div>
             </div>
